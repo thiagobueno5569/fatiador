@@ -75,7 +75,7 @@ em que $`\mathcal{N}_\ell`$ é o **núcleo** (super-especialistas) e $`M`$ é o 
 **Velocidade com cache** (proposta da próxima etapa). Se uma fração $`m`$ das escolhas cair fora da placa e for atendida pela RAM, o tempo por palavra fica entre os dois extremos medidos:
 
 ```math
-\frac{1}{v(m)} = \frac{m}{v_{\text{RAM}}} + \frac{1-m}{v_{\text{GPU}}}, \qquad v_{\text{RAM}} = 15{,}8,\; v_{\text{GPU}} = 72{,}4 \text{ tokens/s}
+\frac{1}{v(m)} = \frac{m}{v_{\text{RAM}}} + \frac{1-m}{v_{\text{GPU}}}, \qquad v_{\text{RAM}} = \text{15,8}, \quad v_{\text{GPU}} = \text{72,4 tokens/s}
 ```
 
 Com $`m = 20\%`$, a estimativa é de ~42 tokens/s, com **a mesma qualidade do modelo inteiro**.
