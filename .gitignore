@@ -1,0 +1,10 @@
+*.gguf
+textos/
+imatrix/
+fatias*/
+llama/
+disco/
+__pycache__/
+log*.txt
+*.progresso.json
+roteadores_ajustados.pt

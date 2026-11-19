@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fatiador · Conversa</title>
+<style>
+:root{--bg:#f7f6f3;--card:#fff;--ink:#1c1c1a;--sub:#5f5e5a;--mut:#8a8984;--line:#e3e1da;--acc:#1d9e75;--acc2:#0f6e56;--accbg:#e1f5ee;--warm:#ef9f27;--red:#e24b4a;--user:#eeedfe;--userink:#3c3489;--cut:#ecebe6}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#151514;--card:#1e1e1c;--ink:#f0efec;--sub:#c3c2b7;--mut:#8a8984;--line:#2f2f2c;--acc:#2fbf8e;--acc2:#9fe1cb;--accbg:#103a2f;--user:#2a2650;--userink:#cecbf6;--cut:#262624}}
+:root[data-theme="dark"]{--bg:#151514;--card:#1e1e1c;--ink:#f0efec;--sub:#c3c2b7;--mut:#8a8984;--line:#2f2f2c;--acc:#2fbf8e;--acc2:#9fe1cb;--accbg:#103a2f;--user:#2a2650;--userink:#cecbf6;--cut:#262624}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+header{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+header h1{font-size:17px;font-weight:600;margin:0}
+header .sp{flex:1}
+select,button,textarea{font:inherit;color:inherit}
+select,button{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px;cursor:pointer}
+main{display:grid;grid-template-columns:minmax(0,1.1fr) minmax(0,1fr);gap:16px;padding:16px 20px;height:calc(100vh - 58px)}
+@media (max-width:900px){main{grid-template-columns:1fr;height:auto}}
+.col{display:flex;flex-direction:column;min-height:0;gap:12px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.card h2{font-size:13px;font-weight:600;color:var(--sub);margin:0 0 10px;text-transform:none}
+#chat{flex:1;overflow:auto;display:flex;flex-direction:column;gap:10px;padding:16px}
+.msg{max-width:88%;padding:10px 14px;border-radius:12px;white-space:pre-wrap;word-wrap:break-word}
+.msg.u{align-self:flex-end;background:var(--user);color:var(--userink)}
+.msg.b{align-self:flex-start;background:var(--bg);border:1px solid var(--line)}
+.msg .meta{display:block;margin-top:6px;font-size:12px;color:var(--mut)}
+.msg .pens{display:block;font-size:13px;color:var(--mut);font-style:italic;border-left:2px solid var(--line);padding-left:8px;margin-bottom:6px;max-height:120px;overflow:auto;white-space:pre-wrap}
+.msg pre{background:var(--cut);padding:8px;border-radius:6px;overflow:auto;white-space:pre}
+.aviso{align-self:center;font-size:12px;color:var(--mut)}
+form{display:flex;gap:8px}
+textarea{flex:1;resize:none;height:52px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card)}
+button.prim{background:var(--acc);border-color:var(--acc);color:#fff;font-weight:600;padding:0 18px}
+button:disabled{opacity:.5;cursor:default}
+.painel{overflow:auto}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.kpi{background:var(--bg);border-radius:8px;padding:8px 10px}
+.kpi small{display:block;font-size:12px;color:var(--sub)}
+.kpi b{font-size:18px;font-weight:600;font-variant-numeric:tabular-nums}
+.bar{display:grid;grid-template-columns:92px 1fr 54px;align-items:center;gap:8px;font-size:13px;margin:4px 0}
+.bar .t{height:12px;background:var(--cut);border-radius:0 4px 4px 0;overflow:hidden}
+.bar .f{height:100%;background:var(--mut);border-radius:0 4px 4px 0;transition:width .4s}
+.bar.on .f{background:var(--acc)}
+.bar.on{font-weight:600}
+.bar .v{text-align:right;color:var(--sub);font-variant-numeric:tabular-nums}
+#mapa{width:100%;image-rendering:pixelated;border-radius:6px;cursor:crosshair;display:block}
+.leg{display:flex;flex-wrap:wrap;gap:12px;font-size:12px;color:var(--sub);margin-top:8px}
+.leg i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:-1px}
+#dica{font-size:12px;color:var(--sub);min-height:18px;margin-top:4px}
+#hist{display:flex;flex-wrap:wrap;gap:6px}
+.chip{font-size:12px;padding:3px 8px;border-radius:999px;background:var(--accbg);color:var(--acc2)}
+.chip.full{background:var(--cut);color:var(--sub)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Fatiador · conversa com a IA fatiada</h1>
+  <span class="sp"></span>
+  <label for="modo" style="font-size:13px;color:var(--sub)">Fatia</label>
+  <select id="modo"><option value="auto">Automática (pelo assunto)</option><option value="inteiro">Modelo inteiro (comparar)</option></select>
+  <button id="limpar" type="button">Nova conversa</button>
+</header>
+<main>
+  <section class="col">
+    <div class="card" id="chat" aria-live="polite">
+      <div class="aviso">Pergunte qualquer coisa. O painel ao lado mostra qual fatia está respondendo.</div>
+    </div>
+    <form id="f"><textarea id="txt" placeholder="Escreva sua mensagem (Enter envia, Shift+Enter quebra linha)"></textarea><button class="prim" id="env">Enviar</button></form>
+  </section>
+  <section class="col painel">
+    <div class="card">
+      <h2>Agora</h2>
+      <div class="kpis">
+        <div class="kpi"><small>Fatia na placa</small><b id="kFatia">–</b></div>
+        <div class="kpi"><small>Velocidade</small><b id="kVel">–</b></div>
+        <div class="kpi"><small>Tamanho</small><b id="kTam">–</b></div>
+        <div class="kpi"><small>Troca de fatia</small><b id="kTroca">–</b></div>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Roteador de assunto (semelhança da conversa com cada assunto)</h2>
+      <div id="barras"></div>
+    </div>
+    <div class="card">
+      <h2 id="tMapa">Mapa dos especialistas · 48 camadas × 128</h2>
+      <canvas id="mapa" width="640" height="336" role="img" aria-label="Mapa de especialistas ligados e desligados por camada"></canvas>
+      <div id="dica">Passe o mouse no mapa pra ver cada especialista.</div>
+      <div class="leg"><span><i style="background:var(--acc)"></i>Ligado (mais forte = mais usado)</span><span><i style="background:var(--cut);border:1px solid var(--line)"></i>Desligado (dormindo)</span><span><i style="background:var(--red)"></i>Super-especialista (núcleo)</span></div>
+    </div>
+    <div class="card">
+      <h2>Histórico (assunto de cada resposta)</h2>
+      <div id="hist"><span style="font-size:13px;color:var(--mut)">Nenhuma resposta ainda.</span></div>
+    </div>
+  </section>
+</main>
+<script>
+const $=id=>document.getElementById(id);
+let msgs=[],info=null,mapaDados=null,ocupado=false;
+const NOME={calculo:"Cálculo",culinaria:"Culinária",eletronica:"Eletrônica",futebol:"Futebol",historia:"História",programacao:"Programação",inteiro:"Modelo inteiro"};
+const nome=a=>NOME[a]||a;
+const css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+
+async function iniciar(){
+  info=await (await fetch('/api/info')).json();
+  for(const a of info.assuntos){const o=document.createElement('option');o.value=a;o.textContent='Só '+nome(a);$('modo').appendChild(o)}
+  barras({});
+  desenharMapa(info.assuntos[0]);
+}
+function barras(p,alvo){
+  const max=Math.max(0.0001,...Object.values(p));
+  $('barras').innerHTML=info.assuntos.map(a=>{const v=p[a]||0;return `<div class="bar ${a===alvo?'on':''}"><span>${nome(a)}</span><div class="t"><div class="f" style="width:${(100*v/max).toFixed(0)}%"></div></div><span class="v">${v.toFixed(3)}</span></div>`}).join('');
+}
+async function desenharMapa(alvo){
+  mapaDados=await (await fetch('/api/mapa?alvo='+alvo)).json();
+  const m=mapaDados,c=$('mapa'),g=c.getContext('2d'),W=c.width/m.n_esp,H=c.height/m.camadas;
+  const acc=css('--acc'),cut=css('--cut'),red=css('--red');
+  g.clearRect(0,0,c.width,c.height);
+  for(let l=0;l<m.camadas;l++){const lig=new Set(m.ligados[l]);
+    for(let e=0;e<m.n_esp;e++){
+      if(lig.has(e)){g.fillStyle=acc;g.globalAlpha=0.25+0.75*Math.sqrt(m.uso[l][e])}else{g.fillStyle=cut;g.globalAlpha=1}
+      g.fillRect(e*W,l*H,W-0.6,H-0.6)}}
+  g.globalAlpha=1;g.fillStyle=red;
+  for(const [l,e] of m.super)g.fillRect(e*W-1,l*H-1,W+1.4,H+1.4);
+  $('tMapa').textContent=`Mapa dos especialistas · ${nome(alvo)} · ${m.camadas} camadas × ${m.n_esp} · fatia cobre ${(100*m.cobertura).toFixed(0)}% das escolhas do roteador`;
+}
+$('mapa').addEventListener('mousemove',ev=>{
+  if(!mapaDados)return;const r=ev.target.getBoundingClientRect(),m=mapaDados;
+  const e=Math.floor((ev.clientX-r.left)/r.width*m.n_esp),l=Math.floor((ev.clientY-r.top)/r.height*m.camadas);
+  if(l<0||e<0||l>=m.camadas||e>=m.n_esp)return;
+  const sup=m.super.some(([a,b])=>a===l&&b===e),lig=m.ligados[l].includes(e);
+  $('dica').textContent=`Camada ${l}, especialista ${e}: ${sup?'SUPER-ESPECIALISTA (núcleo), ':''}${lig?'ligado':'desligado'} · uso relativo ${(100*m.uso[l][e]).toFixed(0)}%`;
+});
+function esc(s){return s.replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}
+function formatar(t){return esc(t).replace(/```[\w-]*\n?([\s\S]*?)```/g,'<pre>$1</pre>').replace(/\*\*(.+?)\*\*/g,'<b>$1</b>')}
+function bolha(cls,html){const d=document.createElement('div');d.className=cls;d.innerHTML=html;$('chat').appendChild(d);$('chat').scrollTop=1e9;return d}
+function addHist(alvo,vel){const h=$('hist');if(h.querySelector('span:not(.chip)'))h.innerHTML='';
+  const s=document.createElement('span');s.className='chip'+(alvo==='inteiro'?' full':'');s.textContent=nome(alvo)+(vel?` · ${vel} tok/s`:'');h.appendChild(s)}
+
+async function enviar(){
+  const t=$('txt').value.trim();if(!t||ocupado)return;
+  ocupado=true;$('env').disabled=true;$('txt').value='';
+  msgs.push({role:'user',content:t});bolha('msg u',esc(t));
+  const b=bolha('msg b','<span class="meta">pensando…</span>');let texto='',pens='',alvo='',aviso=null;
+  const desenhar=()=>{b.innerHTML=(pens?`<span class="pens">pensando: ${esc(pens.slice(-600))}</span>`:'')+formatar(texto)};
+  try{
+    const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({mensagens:msgs,modo:$('modo').value})});
+    const leitor=r.body.getReader(),dec=new TextDecoder();let buf='';
+    while(true){const {value,done}=await leitor.read();if(done)break;buf+=dec.decode(value,{stream:true});
+      let i;while((i=buf.indexOf('\n\n'))>=0){const linha=buf.slice(0,i).trim();buf=buf.slice(i+2);if(!linha.startsWith('data:'))continue;
+        const ev=JSON.parse(linha.slice(5));
+        if(ev.tipo==='rota'){alvo=ev.alvo;barras(ev.pontuacao,ev.alvo==='inteiro'?null:ev.alvo);desenharMapa(ev.alvo)}
+        else if(ev.tipo==='aviso'){if(!aviso){aviso=document.createElement('div');aviso.className='aviso';$('chat').insertBefore(aviso,b)}aviso.textContent=ev.texto}
+        else if(ev.tipo==='carregado'){$('kFatia').textContent=nome(ev.alvo);$('kTam').textContent=ev.tamanho_gb+' GB';
+          $('kTroca').textContent=ev.trocou?ev.segundos+' s':'não precisou';if(aviso)aviso.textContent=!ev.trocou?'':ev.alvo==='inteiro'?`Modelo inteiro carregado em ${ev.segundos} s (todos os especialistas na RAM)`:`Fatia de ${nome(ev.alvo)} carregada em ${ev.segundos} s (${ev.camadas_ram} de 48 camadas de especialistas na RAM)`}
+        else if(ev.tipo==='pensando'){pens+=ev.texto;desenhar()}
+        else if(ev.tipo==='texto'){texto+=ev.texto;desenhar()}
+        else if(ev.tipo==='fim'){const v=ev.tok_s;$('kVel').textContent=v?v+' tok/s':'–';
+          b.innerHTML=(texto?formatar(texto):'<i>(o modelo não chegou a uma resposta final)</i>')+`<span class="meta">${nome(alvo)} · ${ev.tokens} tokens · ${v||'?'} tok/s · primeira palavra em ${ev.espera_s} s</span>`;addHist(alvo,v)}
+        else if(ev.tipo==='erro'){b.innerHTML=`<span class="meta" style="color:var(--red)">Erro: ${esc(ev.texto)}</span>`}
+        $('chat').scrollTop=1e9}}
+    if(texto)msgs.push({role:'assistant',content:texto});else msgs.pop();
+  }catch(e){b.innerHTML=`<span class="meta" style="color:var(--red)">Erro de conexão: ${esc(String(e))}</span>`;msgs.pop()}
+  ocupado=false;$('env').disabled=false;$('txt').focus();
+}
+$('f').addEventListener('submit',e=>{e.preventDefault();enviar()});
+$('txt').addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();enviar()}});
+$('limpar').addEventListener('click',()=>{msgs=[];$('chat').innerHTML='<div class="aviso">Nova conversa.</div>'});
+iniciar();
+</script>
+</body>
+</html>

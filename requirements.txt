@@ -1,0 +1,6 @@
+numpy
+gguf
+# só para o ajuste fino (4_ajuste_fino.py):
+# torch (com CUDA)
+# transformers==5.23.0
+# accelerate
