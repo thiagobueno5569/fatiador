@@ -46,13 +46,13 @@ flowchart LR
 
 **Roteador como geometria.** Numa camada com especialistas $e_1,\dots,e_N$, o roteador tem um vetor $w_i$ por especialista. Para uma palavra com estado oculto $h$, o roteador calcula
 
-$$s_i = w_i \cdot h, \qquad \text{usados} = \operatorname{top}_k(s_1,\dots,s_N)$$
+$$s_i = w_i \cdot h, \qquad \text{usados} = \mathrm{top}_k(s_1,\dots,s_N)$$
 
 Ou seja, cada especialista "manda" num **cone** do espaço, e a palavra usa os $k$ especialistas que apontam mais perto dela. Um **assunto** é uma *nuvem* de pontos nesse espaço.
 
 **Fatia.** Para o assunto $t$, contamos em cada camada $\ell$ quantas vezes cada especialista foi escolhido, $c^{(t)}_{\ell,i}$, e mantemos
 
-$$S^{(t)}_\ell = \mathcal{N}_\ell \;\cup\; \operatorname{top}_{M - |\mathcal{N}_\ell|}\big(c^{(t)}_{\ell,1},\dots,c^{(t)}_{\ell,N}\big)$$
+$$S^{(t)}_\ell = \mathcal{N}_\ell \;\cup\; \mathrm{top}_{M - |\mathcal{N}_\ell|}\big(c^{(t)}_{\ell,1},\dots,c^{(t)}_{\ell,N}\big)$$
 
 em que $\mathcal{N}_\ell$ é o **núcleo** (super-especialistas) e $M$ é o tamanho da fatia (32 ou 64). O roteador da fatia só enxerga $S^{(t)}_\ell$: se a palavra "queria" um especialista cortado, ela usa o próximo mais próximo dentro da fatia.
 
@@ -62,7 +62,7 @@ $$\text{cobertura}^{(t)} = \frac{1}{L}\sum_\ell \frac{\sum_{i\in S^{(t)}_\ell} c
 
 **Detecção automática de super-especialistas.** O `llama-imatrix` guarda, por especialista, a soma dos quadrados das ativações que entram na projeção `down`. Dividindo pelo número de vezes que ele foi usado, temos a ativação de pico típica $a_{\ell,i}$:
 
-$$\rho_{\ell,i} = \frac{a_{\ell,i}}{\operatorname{mediana}_j\, a_{\ell,j}} > 5000 \;\Rightarrow\; \text{super-especialista} \Rightarrow \text{entra no núcleo}$$
+$$\rho_{\ell,i} = \frac{a_{\ell,i}}{\mathrm{mediana}_j\, a_{\ell,j}} > 5000 \;\Rightarrow\; \text{super-especialista} \Rightarrow \text{entra no núcleo}$$
 
 **Velocidade com cache** (proposta da próxima etapa). Se uma fração $m$ das escolhas cair fora da placa e for atendida pela RAM, o tempo por palavra fica entre os dois extremos medidos:
 
