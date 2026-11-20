@@ -1,0 +1,180 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fatiador — modo cérebro</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/contrib/auto-render.min.js"></script>
+<style>
+:root{--bg:#0d1017;--painel:#151a24;--borda:#262d3b;--txt:#e6e9ef;--fraco:#8b93a7;
+  --vram:#f5a524;--ram:#3b82f6;--ssd:#2a3142;--vital:#ef4444;--criada:#22c55e;--cortada:#f43f5e}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font:15px/1.5 system-ui,Segoe UI,sans-serif;height:100vh;display:flex;flex-direction:column}
+header{padding:10px 16px;border-bottom:1px solid var(--borda);display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+header h1{font-size:17px;margin:0}
+header .modelo{color:var(--fraco);font-size:13px}
+header .esp{flex:1}
+button{background:var(--painel);color:var(--txt);border:1px solid var(--borda);border-radius:8px;padding:6px 12px;cursor:pointer;font:inherit;font-size:13px}
+button:hover{border-color:#4b5568}
+button.on{background:#2b2210;border-color:var(--vram);color:var(--vram)}
+main{flex:1;display:grid;grid-template-columns:minmax(320px,1fr) minmax(360px,1.25fr);min-height:0}
+#chat{display:flex;flex-direction:column;border-right:1px solid var(--borda);min-height:0}
+#msgs{flex:1;overflow:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.msg{max-width:95%;padding:10px 14px;border-radius:12px;background:var(--painel);border:1px solid var(--borda);overflow-x:auto}
+.msg.eu{align-self:flex-end;background:#1d2738}
+.msg p{margin:.4em 0}.msg pre{background:#0a0d13;padding:8px;border-radius:6px;overflow:auto}
+.meta{font-size:12px;color:var(--fraco);margin-top:4px}
+form{display:flex;gap:8px;padding:12px;border-top:1px solid var(--borda)}
+textarea{flex:1;resize:none;height:56px;background:var(--painel);color:var(--txt);border:1px solid var(--borda);border-radius:10px;padding:10px;font:inherit}
+#lado{padding:14px 16px;overflow:auto;display:flex;flex-direction:column;gap:12px}
+canvas{width:100%;image-rendering:pixelated;border-radius:8px;background:#0a0d13;border:1px solid var(--borda)}
+.legenda{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--fraco)}
+.legenda i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:-1px}
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}
+.card{background:var(--painel);border:1px solid var(--borda);border-radius:10px;padding:8px 10px}
+.card b{display:block;font-size:20px;font-variant-numeric:tabular-nums}
+.card span{font-size:12px;color:var(--fraco)}
+.barra{display:flex;height:12px;border-radius:6px;overflow:hidden;background:var(--ssd)}
+.barra div{height:100%;transition:width .4s}
+#log{font:12px/1.4 ui-monospace,Consolas,monospace;color:var(--fraco);white-space:pre-wrap;max-height:130px;overflow:auto;background:var(--painel);border:1px solid var(--borda);border-radius:10px;padding:8px}
+@media (max-width:860px){main{grid-template-columns:1fr}#chat{border-right:0;border-bottom:1px solid var(--borda);min-height:60vh}}
+</style>
+</head>
+<body>
+<header>
+  <h1>🧠 Fatiador — modo cérebro</h1><span class="modelo" id="modelo">carregando…</span>
+  <span class="esp"></span>
+  <button id="bFiel" class="on" title="Atende qualquer especialista pedido: mesma resposta do modelo inteiro">Fiel</button>
+  <button id="bPlast" title="Só conexões vivas respondem; estímulo forte cria conexão nova">Plástico</button>
+  <button id="bDormir" title="Consolida a memória da conversa e salva no disco">😴 Dormir</button>
+  <button id="bNova">Nova conversa</button>
+</header>
+<main>
+  <section id="chat">
+    <div id="msgs"></div>
+    <form id="f"><textarea id="q" placeholder="Pergunte qualquer coisa… (Enter envia)"></textarea><button>Enviar</button></form>
+  </section>
+  <section id="lado">
+    <div>
+      <canvas id="mapa"></canvas>
+      <div class="legenda">
+        <span><i style="background:var(--vram)"></i>VRAM (memória de trabalho)</span>
+        <span><i style="background:var(--ram)"></i>RAM (memória recente)</span>
+        <span><i style="background:var(--ssd)"></i>SSD (longo prazo)</span>
+        <span><i style="background:#fff"></i>ativo agora</span>
+        <span><i style="background:var(--vital)"></i>neurônio vital</span>
+        <span><i style="background:var(--criada)"></i>conexão criada</span>
+        <span><i style="background:var(--cortada)"></i>cortada</span>
+      </div>
+      <div class="meta">Cada linha é uma camada; cada coluna, um especialista. Brilho = força da conexão.</div>
+    </div>
+    <div class="cards">
+      <div class="card"><b id="cTok">—</b><span>tokens/s</span></div>
+      <div class="card"><b id="cCri">0</b><span>conexões criadas</span></div>
+      <div class="card"><b id="cCor">0</b><span>conexões cortadas</span></div>
+      <div class="card"><b id="cVit">0</b><span>neurônios vitais</span></div>
+      <div class="card"><b id="cVram">0</b><span id="cVramL">na VRAM</span></div>
+      <div class="card"><b id="cRam">0</b><span id="cRamL">na RAM</span></div>
+    </div>
+    <div>
+      <div class="meta" style="margin-bottom:4px">De onde veio cada especialista usado:</div>
+      <div class="barra"><div id="hV" style="background:var(--vram)"></div><div id="hR" style="background:var(--ram)"></div><div id="hS" style="background:#555e72"></div></div>
+      <div class="meta" id="hTxt"></div>
+    </div>
+    <div id="log"></div>
+  </section>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+let L = 48, E = 128, flashes = [], ultimo = null;
+const cv = $('#mapa'), cx = cv.getContext('2d');
+const cor = getComputedStyle(document.documentElement);
+const C = n => cor.getPropertyValue(n).trim();
+function hex(c){const v=parseInt(c.slice(1),16);return [v>>16&255,v>>8&255,v&255]}
+
+function un64(s){const b=atob(s),a=new Uint8Array(b.length);for(let i=0;i<b.length;i++)a[i]=b.charCodeAt(i);return a}
+
+function desenhar(st){
+  if(st) ultimo = st; st = ultimo; if(!st) return;
+  const cel = Math.max(3, Math.floor(Math.min(900, cv.parentElement.clientWidth) / E));
+  cv.width = E*cel; cv.height = L*cel;
+  const niv = un64(st.nivel), fo = un64(st.forca);
+  const base = [hex(C('--ssd')), hex(C('--ram')), hex(C('--vram'))];
+  const img = cx.createImageData(cv.width, cv.height);
+  for(let l=0;l<L;l++) for(let e=0;e<E;e++){
+    const i=l*E+e, n=niv[i], f=fo[i]/255, b=base[n];
+    const k = n===0 ? 0.55+0.45*f : 0.35+0.65*f;
+    for(let y=0;y<cel-(cel>4?1:0);y++) for(let x=0;x<cel-(cel>4?1:0);x++){
+      const p=((l*cel+y)*cv.width+(e*cel+x))*4;
+      img.data[p]=b[0]*k; img.data[p+1]=b[1]*k; img.data[p+2]=b[2]*k; img.data[p+3]=255;
+    }
+  }
+  cx.putImageData(img,0,0);
+  const agora = performance.now();
+  flashes = flashes.filter(f => agora - f.t < 1500);
+  for(const f of flashes){ cx.globalAlpha = 1-(agora-f.t)/1500; cx.fillStyle = f.c; cx.fillRect(f.e*cel, f.l*cel, cel, cel); }
+  cx.globalAlpha = 1;
+  cx.strokeStyle = C('--vital'); cx.lineWidth = Math.max(1, cel/4);
+  for(const [l,e] of st.vital) cx.strokeRect(e*cel+.5, l*cel+.5, cel-1, cel-1);
+  cx.fillStyle = '#fff';
+  (st.ativos||[]).forEach((es,l)=>es.forEach(e=>{cx.fillRect(e*cel+cel*.25,l*cel+cel*.25,cel*.5,cel*.5)}));
+  const s = st.stats, t = st.taxa;
+  $('#cCri').textContent = s.criadas.toLocaleString('pt-BR');
+  $('#cCor').textContent = s.cortadas.toLocaleString('pt-BR');
+  $('#cVit').textContent = st.vital.length;
+  $('#cVram').textContent = st.vram; $('#cVramL').textContent = `na VRAM (de ${st.cap_vram})`;
+  $('#cRam').textContent = st.ram; $('#cRamL').textContent = `na RAM (de ${st.cap_ram})`;
+  $('#hV').style.width = (t.vram*100)+'%'; $('#hR').style.width = (t.ram*100)+'%'; $('#hS').style.width = (t.ssd*100)+'%';
+  $('#hTxt').textContent = `VRAM ${(t.vram*100).toFixed(0)}% · RAM ${(t.ram*100).toFixed(0)}% · SSD ${(t.ssd*100).toFixed(0)}%` +
+    (s.recrutados ? ` · recrutados no modo plástico: ${s.recrutados}` : '') + ` · contexto ${st.pos}/${st.ctx}`;
+  $('#bFiel').classList.toggle('on', st.modo==='fiel'); $('#bPlast').classList.toggle('on', st.modo==='plastico');
+}
+function animar(){ if(flashes.length) desenhar(); requestAnimationFrame(animar) }
+requestAnimationFrame(animar);
+
+function bolha(quem, html){ const d=document.createElement('div'); d.className='msg '+quem; d.innerHTML=html; $('#msgs').append(d); $('#msgs').scrollTop=1e9; return d }
+function render(el, txt){
+  if(!window.marked){ el.textContent = txt; return }
+  el.innerHTML = marked.parse(txt.replace(/\\\[/g,'$$$$').replace(/\\\]/g,'$$$$').replace(/\\\(/g,'$').replace(/\\\)/g,'$'));
+  if(window.renderMathInElement) try{ renderMathInElement(el,{delimiters:[{left:'$$',right:'$$',display:true},{left:'$',right:'$',display:false}],throwOnError:false}) }catch(e){}
+}
+
+async function info(){
+  const r = await (await fetch('/info')).json();
+  L = r.L; E = r.E; $('#modelo').textContent = `${r.modelo} · ${L} camadas × ${E} especialistas (${r.k} ativos por palavra)`;
+  $('#log').textContent = r.log.join('\n'); desenhar(r.estado);
+}
+
+$('#f').onsubmit = async ev => {
+  ev.preventDefault(); const q = $('#q').value.trim(); if(!q) return; $('#q').value='';
+  bolha('eu', q.replace(/</g,'&lt;'));
+  const b = bolha('ia', '<span class="meta">lendo a pergunta…</span>'); let txt = '', meta = '';
+  const r = await fetch('/chat',{method:'POST',body:JSON.stringify({msg:q})});
+  const rd = r.body.getReader(), dec = new TextDecoder(); let buf = '';
+  for(;;){
+    const {done, value} = await rd.read(); if(done) break;
+    buf += dec.decode(value,{stream:true}); let i;
+    while((i = buf.indexOf('\n\n')) >= 0){
+      const bloco = buf.slice(0,i); buf = buf.slice(i+2);
+      const tipo = (bloco.match(/^event: (.*)$/m)||[])[1], dado = JSON.parse((bloco.match(/^data: (.*)$/m)||[])[1]||'{}');
+      if(tipo==='texto'){ txt += dado.t; $('#cTok').textContent = dado.tok_s.toFixed(1); render(b, txt); $('#msgs').scrollTop=1e9 }
+      else if(tipo==='mapa'){ const ag=performance.now(); for(const [l,e,s] of dado.eventos) flashes.push({l,e,t:ag,c:s>0?C('--criada'):C('--cortada')}); desenhar(dado) }
+      else if(tipo==='fim'){ meta = `${dado.tokens} tokens · ${dado.tok_s.toFixed(1)} tok/s · pergunta lida em ${dado.leitura_s.toFixed(1)} s`; render(b, txt); b.insertAdjacentHTML('beforeend', `<div class="meta">${meta}</div>`) }
+      else if(tipo==='erro'){ b.insertAdjacentHTML('beforeend', `<div class="meta" style="color:var(--cortada)">erro: ${dado.t}</div>`) }
+    }
+  }
+  info();
+};
+$('#q').addEventListener('keydown', e => { if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); $('#f').requestSubmit() } });
+$('#bFiel').onclick = async () => { await fetch('/modo',{method:'POST',body:JSON.stringify({modo:'fiel'})}); info() };
+$('#bPlast').onclick = async () => { await fetch('/modo',{method:'POST',body:JSON.stringify({modo:'plastico'})}); info() };
+$('#bDormir').onclick = async () => { await fetch('/dormir',{method:'POST'}); info() };
+$('#bNova').onclick = async () => { await fetch('/nova',{method:'POST'}); $('#msgs').innerHTML=''; info() };
+window.onresize = () => desenhar();
+info();
+</script>
+</body>
+</html>

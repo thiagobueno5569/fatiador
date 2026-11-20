@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 import urllib.request
+import zlib
 from pathlib import Path
 
 AQUI = Path(__file__).resolve().parent
@@ -39,9 +40,26 @@ PORTA = 8091
 
 
 def subir(a, modelo):
+    """Sobe o servidor; se faltar memória na placa, tenta de novo com menos especialistas na GPU."""
+    vram = a.vram
+    while True:
+        logp = AQUI / "log_teste_servidor.txt"
+        ini = logp.stat().st_size if logp.exists() else 0
+        try:
+            return _subir(a, modelo, vram)
+        except RuntimeError:
+            txt = logp.read_bytes()[ini:].decode("utf-8", "replace") if logp.exists() else ""
+            if "out of memory" in txt and vram > 1.5:
+                vram = round(vram - 0.8, 1)
+                print(f"  faltou memória na placa; tentando de novo com --vram {vram}", flush=True)
+                continue
+            raise
+
+
+def _subir(a, modelo, vram):
     srv = next((AQUI / a.llama).rglob("llama-server.exe"), None) or next((AQUI / a.llama).rglob("llama-server"))
     tam = Path(modelo).stat().st_size / 1e9
-    n_cpu = comparador.cpu_moe_auto(modelo, a.vram)
+    n_cpu = comparador.cpu_moe_auto(modelo, vram)
     cmd = [str(srv), "-m", str(modelo), "-ngl", "99", "-c", "4096", "--port", str(PORTA),
            "--host", "127.0.0.1", "--jinja", "--n-cpu-moe", n_cpu] + a.extra
     if tam < 20:
@@ -87,6 +105,14 @@ def lixo(txt):
     return sum(c in ".…" for c in txt) / len(txt)
 
 
+def repetitivo(txt):
+    """Texto que entrou em laço ("\\; \\; \\;", "(x^2) = (x^2) = ...") comprime demais."""
+    if len(txt) < 400:
+        return False
+    fim = txt[-1500:].encode()
+    return len(zlib.compress(fim)) / len(fim) < 0.25
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--llama", default="llama")
@@ -114,7 +140,12 @@ def main():
                 for q in PERGUNTAS.get(ass, []):
                     print(f"  pergunta: {q}", flush=True)
                     r = perguntar(q, a.max_tokens)
-                    estado = "⚠️ DESMONTOU" if lixo(r["resposta"] or r["raciocinio"]) > 0.3 or not r["resposta"] else "ok"
+                    if lixo(r["resposta"] or r["raciocinio"]) > 0.3 or not r["resposta"]:
+                        estado = "⚠️ DESMONTOU"
+                    elif repetitivo(r["resposta"]) or repetitivo(r["raciocinio"]):
+                        estado = "🔁 ENTROU EM LAÇO"
+                    else:
+                        estado = "ok"
                     print(f"    {estado} | {r['tok_s']} tok/s | {len(r['resposta'])} caracteres", flush=True)
                     out += [f"**P:** {q}  \n*{estado} · {r['tok_s']} tok/s · {r['tokens']} tokens · {r['segundos']} s*\n",
                             f"> raciocínio: {r['raciocinio'][:400].replace(chr(10), ' ')}\n",
