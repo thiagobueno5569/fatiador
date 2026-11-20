@@ -17,6 +17,9 @@ Uma ideia de pesquisa testada de ponta a ponta num PC doméstico (RTX 2060 com 6
 | Qwen3-30B-A3B | **32 de 128 especialistas + núcleo** | **5,4 GB** (cabe na placa) | 33% a 96% pior | **55,9 tokens/s (3,5×)** |
 | gpt-oss-120b (inteiro) | — | 63,4 GB (**o dobro da RAM**) | referência | não roda direito no PC |
 | gpt-oss-120b | 32 de 128 especialistas | 17,5 GB | 2,1× pior em texto (cálculo); conversa ainda em ajuste ⚠️ | 10 a 24 tokens/s |
+| **Qwen3-30B-A3B** | **🧠 modo plástico: 32 vivos por camada, mudando com a conversa** | 18,6 GB (todos no disco) | **+14% num texto que troca de assunto**, sem calibração | **20,6 tokens/s** (com cache na placa) |
+| **Qwen3-235B-A22B (86 GB)** | — | **86 GB (2,7× a RAM)** | referência | 0,69 tokens/s |
+| **Qwen3-235B-A22B** | **🧠 modo plástico: 32 vivos por camada** | 86 GB, ~20 GB vivos | **+17,7%**; matemática perfeita, conhecimento de nicho sofre | **2,8 tokens/s (4×)** |
 
 *Qualidade medida por perplexidade em artigos da Wikipédia **diferentes** dos usados para calibrar. Os 6 assuntos são cálculo, culinária, eletrônica, futebol, história e programação.*
 
@@ -111,6 +114,77 @@ Calibrando só com texto de enciclopédia, a fatia do gpt-oss entendia o assunto
 
 ---
 
+## 🧠 Fase 2: o modo cérebro (sem assuntos, sem calibração)
+
+As fatias por assunto têm um defeito: alguém precisa decidir os assuntos e calibrar com textos. A segunda fase tira isso: **cada especialista é um neurônio com uma força de conexão** que sobe quando o roteador o escolhe e decai com o tempo (meia-vida). As conexões fortes ficam vivas, as fracas são cortadas, e o modelo muda de forma durante a conversa.
+
+```math
+s_e(t) = s_e(t_0)\,2^{-(t-t_0)/\tau} + w_e(t), \qquad \text{vivos}_\ell = \text{top}_N\big(s_{\ell,e}\big) \cup \text{vitais}_\ell
+```
+
+### 7. Motor próprio em Python, com memória em 3 níveis (`fatiador/cerebro/`)
+Um motor Qwen3-MoE escrito do zero (lê o GGUF, descomprime Q2_K–Q8_0 na GPU, confere com o Transformers com erro de 7×10⁻⁶): os especialistas fortes moram na **VRAM**, os médios na **RAM** e os fracos no **SSD**, com um mapa ao vivo das conexões nascendo e morrendo.
+
+- **Ele achou os super-especialistas sozinho, enquanto conversava**, medindo o pico de ativação: no Qwen3-30B, exatamente os 3 do artigo (1/68, 2/92, 3/82, picos de 1.300 a 1.900× a mediana). No **Qwen3-235B, que o artigo não testou, achou 2: camada 2/especialista 39 e camada 3/especialista 120** (picos de 3.000 a 6.000×). *Preliminar: só 2 perguntas.*
+- Velocidade, com honestidade: 1,7 tokens/s no 30B e 0,1 no 235B. O PyTorch não tem os kernels comprimidos do llama.cpp; serviu de laboratório.
+
+### 8. O llama.cpp chegou à mesma ideia, e medimos
+Em novembro de 2026 o llama.cpp ganhou o `--moe-cache-mib`: especialistas usados com frequência ficam num cache na placa, com uma força que soma 1 por uso e cai pela metade a cada 128 tokens: **o mesmo reforço com esquecimento**, chegando independentemente à mesma solução.
+
+| | Qwen3-30B | Qwen3-235B |
+|---|---|---|
+| normal (especialistas na RAM) | 16,1 tok/s | 0,73 tok/s |
+| cache na placa, faltas **enviadas** pra placa (padrão) | 11,6 ❌ | 0,30 ❌ |
+| cache na placa, faltas **calculadas no processador** (`--moe-cache-cpu-share 1`) | **18,2–19,9** ✅ | 0,68 |
+
+O cache exato não ajuda o 235B: com 86 GB num PC de 32 GB, o gargalo é o **SSD**, não onde o especialista é calculado.
+
+### 9. Modo plástico no llama.cpp (fork) — a parte nova
+No [fork do llama.cpp](https://github.com/thiagobueno5569/llama.cpp/tree/cerebro) (`src/llama-moe-plastic.cpp`), o **roteador de cada camada só pode escolher entre os especialistas vivos** (uma máscara de 0/−∞ somada às notas do roteador). Os outros **nunca são lidos**, então um modelo maior que a RAM roda sem esperar o disco depois de aquecer. Tudo o que estudamos entra junto:
+
+| Conceito | No código |
+|---|---|
+| Força com esquecimento | soma do peso do roteador, meia-vida de 512 tokens |
+| O que o modelo **queria** | o roteador sem máscara roda em paralelo; é ele que decide as forças |
+| Recrutamento | um especialista morto que o roteador quer com peso ≥ 0,2 entra na hora |
+| Neurônios vitais | `--moe-plastic-vital 1:68,2:92,3:82` nunca são cortados |
+| Núcleo | as primeiras 4 camadas MoE ficam inteiras |
+| Susto da novidade | uma pergunta que a fatia cobre bem pior que o normal apaga as forças antigas |
+| Dormir | `--moe-plastic-memory` salva as forças e começa a próxima sessão com elas |
+| Pré-carregamento | uma thread lê do disco os especialistas que acabaram de nascer |
+
+**Qualidade (Qwen3-30B, texto misto de 6 assuntos em sequência, sem nenhuma calibração):**
+
+| Especialistas vivos por camada | Piora da perplexidade | Cobertura do que o roteador queria |
+|---|---|---|
+| 64 de 128 | **+3,2%** | 93,8% |
+| 48 | +7,1% | 87,8% |
+| 32 (com o susto da novidade) | **+14,0%** | 78,9% |
+| 32 **sem vitais e sem núcleo** | **+105%** ❌ | 76,7% |
+| 16 | +60,9% | 59,7% |
+| *fatia fixa de 32 por assunto (fase 1)* | *+33% a +96%* | — |
+
+**Descobertas desta fase:**
+1. **Os neurônios vitais e o núcleo valem 6 vezes a qualidade**: a mesma fatia de 32 vai de +14% para +105% sem eles.
+2. **Fatia que muda vence fatia fixa**: 32 dinâmicos (+14%) contra 32 fixos com o assunto certo (+33% a +96%), e sem precisar saber o assunto.
+3. **Cobertura não é tudo**: dividir o orçamento entre as camadas pela cobertura subiu a cobertura (78,9% → 80%) mas **piorou** a perplexidade (+14% → +20%). As camadas concentradas ficaram com pouco.
+4. **O que o 235B perde é conhecimento de nicho**: com 32 vivos a matemática e a eletrônica saem perfeitas, mas a receita de pão de queijo saiu inventada. Com 40 vivos, quase certa. Raciocínio é amplo; fatos raros moram em especialistas raros.
+
+**Velocidade:**
+
+| | Normal | Modo plástico |
+|---|---|---|
+| Qwen3-30B (com cache na placa) | 19,2 tok/s | **20,6 tok/s** |
+| Qwen3-235B (86 GB num PC de 32 GB) | 0,69 tok/s | **2,8 tok/s (4×)** |
+| Qwen3-235B, perplexidade de 4 mil tokens | 27 min | **13 min**, +17,7% |
+
+```text
+llama-server -m Qwen3-235B-A22B-Instruct-2507-Q2_K-00001-of-00002.gguf -ngl 99 --n-cpu-moe 94 -fa on ^
+  --moe-plastic 32 --moe-plastic-vital 2:39,3:120 --moe-plastic-memory memoria-235b.txt
+```
+
+---
+
 ## 🧪 Simulações (antes dos modelos reais)
 
 A ideia começou numa simulação do zero em NumPy (`simulacoes/`):
@@ -144,6 +218,10 @@ fatiador\GPTOSS_V2.bat            # experimento com o gpt-oss-120b (63 GB), cali
 | `6_calibrar_chat.py` | Calibração no formato de conversa do modelo (harmony / chatml) |
 | `7_testar_conversa.py` | Faz perguntas reais a cada fatia e detecta quando ela "desmonta" |
 | `baixar_modelo.py` | Download paralelo (8 conexões) com retomada e conferência de SHA-256 |
+| `8_calibrar_latex.py` | Calibração com exercícios de cálculo em LaTeX gerados e conferidos pelo SymPy |
+| `cerebro/` | **Modo cérebro em Python**: motor Qwen3-MoE próprio, memória VRAM/RAM/SSD, detector de neurônios vitais, app com mapa ao vivo |
+| `bench_cache.py` | Mede o llama.cpp normal × `--moe-cache-mib` |
+| `avaliar_plastico.py` | Avalia o **modo plástico** do fork: perplexidade e conversas reais (30B e 235B) |
 
 **Hardware dos testes:** Xeon E5-2690 v4 (14 núcleos), 32 GB de DDR4 (2 de 4 canais), RTX 2060 6 GB, SSD SATA → NVMe WD SN750 SE.
 
@@ -161,13 +239,17 @@ docs/img/      gráficos gerados a partir dos dados reais
 - **Perplexidade não é tudo:** é uma medida de texto corrido. A descoberta 5 mostra que uma fatia pode ter perplexidade razoável e mesmo assim conversar mal. Os testes de conversa (`7_testar_conversa.py`) entram justamente pra isso.
 - **6 assuntos, ~30 artigos cada:** é pouco pra conclusões gerais. A escolha da fatia por TF-IDF é simples de propósito.
 - **Modelos prontos não foram treinados para isso:** os especialistas não se organizam por assunto humano. A proposta forte é **treinar** (ou ajustar) com roteamento por assunto (`4_ajuste_fino.py`).
-- O cache "especialistas na placa + o resto na RAM" ainda é uma **estimativa**: o llama.cpp não divide uma camada de especialistas entre GPU e CPU.
+- **Modo plástico:** perplexidade num texto de ~20 mil tokens (30B) e ~4 mil (235B), e 5 perguntas por conversa. Os neurônios vitais do 235B saíram de só 2 perguntas.
+- **Conhecimento raro sofre** com poucos especialistas vivos (ver descoberta 4 da fase 2).
 
 ## 🗺️ Próximos passos
 
 - [ ] Resultado do teste de conversa do gpt-oss calibrado com chat (32 × 64 especialistas)
 - [ ] Ajuste fino dos roteadores com força de agrupamento (Granite), medindo antes e depois
-- [ ] Cache por conversa: fatia na placa, especialistas ausentes atendidos pela RAM (qualidade igual à do modelo inteiro)
+- [x] Cache por conversa: fatia na placa, faltas no processador (o llama.cpp já faz: `--moe-cache-mib`, ~+20% no 30B)
+- [x] Fatia que muda com a conversa (modo plástico no fork do llama.cpp)
+- [ ] Recrutamento por "dúvida": abrir mais especialistas quando o roteador está indeciso (fatos raros)
+- [ ] Detectar os neurônios vitais dentro do llama.cpp (hoje vêm do motor em Python)
 - [ ] Mais assuntos, e um roteador de assunto por embeddings
 - [ ] Curva completa qualidade × tamanho (16, 24, 32, 48, 64, 96)
 
@@ -176,6 +258,8 @@ docs/img/      gráficos gerados a partir dos dados reais
 - Su et al. (2025), *Unveiling Super Experts in Mixture-of-Experts LLMs*, [arXiv:2507.23279](https://arxiv.org/abs/2507.23279), ICLR 2026
 - Dong et al. (2025), *Domain-Specific Pruning of Large MoE Models with Few-shot Demonstrations* (EASY-EP), [arXiv:2504.06792](https://arxiv.org/abs/2504.06792)
 - Eliseev & Mazur (2023), *Fast Inference of Mixture-of-Experts Language Models with Offloading*
+- Song et al. (2023), *PowerInfer*: neurônios "quentes" na GPU e "frios" na CPU (divisão fixa)
+- llama.cpp `--moe-cache-mib` (2026): cache de especialistas com força que decai, a mesma ideia do modo cérebro, chegada de forma independente
 - Aljundi et al. (2017), *Expert Gate: Lifelong Learning with a Network of Experts*
 - Martinetz & Schulten (1991), *Neural Gas*; Kohonen (1982), *Self-Organizing Maps*
 - [llama.cpp](https://github.com/ggml-org/llama.cpp): `llama-imatrix`, `llama-perplexity`, `llama-server`
