@@ -169,6 +169,7 @@ No [fork do llama.cpp](https://github.com/thiagobueno5569/llama.cpp/tree/cerebro
 2. **Fatia que muda vence fatia fixa**: 32 dinâmicos (+14%) contra 32 fixos com o assunto certo (+33% a +96%), e sem precisar saber o assunto.
 3. **Cobertura não é tudo**: dividir o orçamento entre as camadas pela cobertura subiu a cobertura (78,9% → 80%) mas **piorou** a perplexidade (+14% → +20%). As camadas concentradas ficaram com pouco.
 4. **O que o 235B perde é conhecimento de nicho**: com 32 vivos a matemática e a eletrônica saem perfeitas, mas a receita de pão de queijo saiu inventada. Com 40 vivos, quase certa. Raciocínio é amplo; fatos raros moram em especialistas raros.
+5. **O susto da novidade não recupera fatos raros**: na versão final (mesmo número por camada + novidade), o 235B com 32 vivos faz 2,64 tok/s e acerta derivada, integral, capacitor e lei de Ohm, mas ainda chama polvilho de "farinha de milho". Com 40 (2,14 tok/s), erra a origem do pão de queijo e solta um token estranho no meio de uma conta. O especialista que guarda o fato não chega a ser recrutado a tempo: a resposta começa antes.
 
 **Velocidade:**
 
